@@ -13,16 +13,17 @@ module.exports = {
   config: {
     name: "romanticvideo",
     aliases: ["rv"],
-    version: "1.2",
+    version: "1.3",
     author: "Rocky", // ❌ Do not change this
     countDown: 5,
     role: 0,
     shortDescription: "Send romantic video",
-    longDescription: "Sends a random romantic TikTok/Drive clip as video attachment with hot caption",
+    longDescription:
+      "Sends a random romantic TikTok/Drive clip as video attachment with hot caption",
     category: "media",
     guide: {
-      en: "{p}{n} — sends a random romantic video"
-    }
+      en: "{p}{n} — sends a random romantic video",
+    },
   },
 
   // 🔒 Author protection
@@ -68,7 +69,7 @@ module.exports = {
     "https://drive.google.com/uc?export=download&id=1l7Bm2ClPsoGdrlo6DZ8PmGFHAL7hTCvv",
     "https://drive.google.com/uc?export=download&id=1RTFop6Ct-w4jtJjvmZgj0ZMKtiMTNiwe",
     "https://drive.google.com/uc?export=download&id=1k6zGxl9tkNlIzK09p3uuJjOOqyWiXtPR",
-    "https://drive.google.com/uc?export=download&id=1hTMLi02hOEdyI1pcmRZ1SoqlPVlFjoCj"
+    "https://drive.google.com/uc?export=download&id=1hTMLi02hOEdyI1pcmRZ1SoqlPVlFjoCj",
   ],
 
   // 💋 Caption pool
@@ -82,9 +83,10 @@ module.exports = {
     "💞 When love gets steamy, everything glows 😘",
     "❤️ For the ones who love love — hot and pure 💫",
     "💋 Soft lips, slow beats, and deep feels 😍",
-    "🔥 Turn up the heat, it’s a romantic night 💞"
+    "🔥 Turn up the heat, it’s a romantic night 💞",
   ],
 
+  // 🧡 Main logic
   onStart: async function ({ api, event }) {
     const threadID = event.threadID;
     if (!this.threadStates[threadID]) this.threadStates[threadID] = {};
@@ -92,21 +94,19 @@ module.exports = {
     try {
       api.setMessageReaction("💗", event.messageID, () => {}, true);
 
-      // ✨ Send stylish pre-message before uploading
-      await api.sendMessage(
+      // ✨ Send pre-message
+      const preMsg = await api.sendMessage(
         "⏳💖 𝐀𝐩𝐧𝐚𝐫 𝐯𝐢𝐝𝐞𝐨 𝐭𝐢 𝐮𝐩𝐥𝐨𝐚𝐝 𝐤𝐨𝐫𝐚 𝐡𝐨𝐬𝐬𝐞...\n🌸 𝐊𝐢𝐬𝐮 𝐤𝐡𝐨𝐧 𝐨𝐩𝐞𝐤𝐡𝐚 𝐤𝐨𝐫𝐮𝐧 💞\n✨ ʏᴏᴜʀ ʀᴏᴄᴋʏ ʙᴏᴛ 💫",
-        threadID,
-        event.messageID
+        threadID
       );
 
-      // Pick random video + caption
+      // Random pick
       const pick = this.drivePool[Math.floor(Math.random() * this.drivePool.length)];
       const caption = this.captionPool[Math.floor(Math.random() * this.captionPool.length)];
       const directUrl = this.normalizeDrive(pick);
 
       const cacheDir = path.join(__dirname, "cache");
       await fs.ensureDir(cacheDir);
-
       const filePath = path.join(cacheDir, `romantic_${Date.now()}.mp4`);
 
       await this.downloadVideo(directUrl, filePath);
@@ -118,19 +118,28 @@ module.exports = {
             attachment: fs.createReadStream(filePath),
           },
           threadID,
-          event.messageID
+          async () => {
+            // 🧹 Unsend the pre-message after video is sent
+            if (preMsg && preMsg.messageID) {
+              try {
+                await api.unsendMessage(preMsg.messageID);
+              } catch {}
+            }
+          }
         );
 
         fs.unlink(filePath).catch(() => {});
       } else {
-        api.sendMessage("⚠️ Error: Video could not be saved. Try again.", threadID, event.messageID);
+        api.sendMessage("⚠️ Error: Video could not be saved. Try again.", threadID);
+        if (preMsg && preMsg.messageID) api.unsendMessage(preMsg.messageID);
       }
     } catch (err) {
       console.error("romanticvideo error:", err?.response?.data || err);
-      api.sendMessage("❌ An error occurred while sending the romantic video.", threadID, event.messageID);
+      api.sendMessage("❌ An error occurred while sending the romantic video.", threadID);
     }
   },
 
+  // 📥 Video downloader
   downloadVideo: async function (url, outPath) {
     try {
       const res = await axios({
